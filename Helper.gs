@@ -1,4 +1,43 @@
 /**
+ * Ziele für die Bereitstellung der ausgewerteten Dienstleister-Reports.
+ * Foundever erhält nur den Report, keinen separaten Rohdatenexport.
+ */
+function getDLExportTargets(ss) {
+  const wsSettings = ss.getSheetByName("Einstellungen_Global");
+  if (!wsSettings) throw new Error("Blatt 'Einstellungen_Global' fehlt.");
+
+  const targets = [
+    {
+      sheetName: "Teleperformance",
+      folderId: String(wsSettings.getRange("E42").getValue() || "").trim(),
+      fileName: "Steuerungsreport_Teleperformance"
+    },
+    {
+      sheetName: "Concentrix",
+      folderId: String(wsSettings.getRange("E54").getValue() || "").trim(),
+      fileName: "Steuerungsreport_Concentrix"
+    },
+    {
+      sheetName: "Foundever",
+      folderId: "1SnMraecpyMgILcNPK-waZ5t_OsCAy0T3",
+      fileName: "Steuerungsreport_Foundever"
+    }
+  ];
+
+  // Alle Quellblätter und Ordner-IDs prüfen, bevor der erste Report ersetzt wird.
+  targets.forEach(target => {
+    if (!ss.getSheetByName(target.sheetName)) {
+      throw new Error("Blatt '" + target.sheetName + "' fehlt. Bitte den Dienstleister-Report in der Tabelle anlegen.");
+    }
+    if (!target.folderId) {
+      throw new Error("Export-Ordner-ID für " + target.sheetName + " fehlt in 'Einstellungen_Global'.");
+    }
+  });
+
+  return targets;
+}
+
+/**
  * Prüft die Salesforce Rohdaten auf die notwendigen Spalten.
  * Gibt ein Objekt zurück: { valid: boolean, missing: string }
  */

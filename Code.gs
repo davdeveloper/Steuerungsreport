@@ -461,17 +461,20 @@ function exportSteuerungsreportDL() {
   resetProgress();
   updateProgress("Initialisiere Export...", 0);
   try {
-    const ws = ss.getSheetByName("Einstellungen_Global");
-    const F_TP = ws.getRange("E42").getValue(), F_CNX = ws.getRange("E54").getValue();
-    updateProgress("Export TP...", 20);
-    exportSingleSheet(ss, "Teleperformance", F_TP, "Steuerungsreport_Teleperformance");
-    updateProgress("Export Concentrix...", 60);
-    exportSingleSheet(ss, "Concentrix", F_CNX, "Steuerungsreport_Concentrix");
+    const targets = getDLExportTargets(ss);
+    targets.forEach((target, index) => {
+      updateProgress("Export " + target.sheetName + "...", Math.round(10 + (index / targets.length) * 80));
+      exportSingleSheet(ss, target.sheetName, target.folderId, target.fileName);
+    });
     updateProgress("Fertig!", 100);
     Utilities.sleep(1500);
     closeProgressBar();
     ss.toast("Dienstleister-Export fertig.");
-  } catch (e) { updateProgress("FEHLER: " + e.message, 100); }
+  } catch (e) {
+    updateProgress("FEHLER: " + e.message, 100);
+    ss.toast(e.message, "Abbruch", 10);
+    throw e;
+  }
 }
 
 function exportSingleSheet(ss, sName, fId, tName) {
@@ -640,7 +643,7 @@ function getDashboardHtml() { return `<!DOCTYPE html><html><head><base target="_
   <div class="card" id="menu"><div class="header"><h1>Steuerungs-Cockpit</h1><div class="sub">Datenverarbeitung Zentrale</div></div><div class="content">
     <div class="sec"><label>Neuer Import:</label><div style="font-size:11px;color:#555;margin-bottom:10px">Heute für gestern.</div><input type="date" id="d1" value="${new Date().toISOString().split('T')[0]}"><button class="btn-i" onclick="run('startImportFromMenu','d1')">📥 Import Starten</button></div>
     <div style="font-size: 16px; font-weight: bold; color: #1e8449; margin-bottom: -5px;">Dienstleister Export</div>
-    <div class="sec" style="background:#eafaf1;border-color:#d5f5e3"><label style="color:#1e8449">Steuerungsreport Bereitstellen:</label><div style="font-size:11px;color:#555;margin-bottom:10px">Kopiert TP & CX Werte in den DL-Ordner.</div><button class="btn-i" style="background:#2ecc71" onclick="runExport()">📤 Steuerungsreport bereitstellen</button></div>
+    <div class="sec" style="background:#eafaf1;border-color:#d5f5e3"><label style="color:#1e8449">Steuerungsreport Bereitstellen:</label><div style="font-size:11px;color:#555;margin-bottom:10px">Kopiert die Werte für TP, CX und Foundever in den jeweiligen DL-Ordner.</div><button class="btn-i" style="background:#2ecc71" onclick="runExport()">📤 Steuerungsreport bereitstellen</button></div>
     <div class="sec" style="background:#eafaf1;border-color:#d5f5e3"><label style="color:#1e8449">CX Rohdaten (Webhelp):</label><div style="font-size:11px;color:#555;margin-bottom:10px">Tag (TT.MM.JJJJ) oder Zeitraum (TT.MM.JJJJ-TT.MM.JJJJ).</div><input type="text" id="d_cx" placeholder="TT.MM.JJJJ" style="border-color:#a3e4d7;"><button class="btn-i" style="background:#2ecc71" onclick="runCXExport()">📥 Concentrix Rohdaten bereitstellen</button></div>
     <div class="sec" style="background:#fdedec;border-color:#fadbd8"><label style="color:#c0392b">Daten löschen:</label><input type="date" id="d2"><button class="btn-d" onclick="confirmDelete()">🗑️ Löschen</button></div>
   </div></div>
