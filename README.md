@@ -18,8 +18,13 @@ Rechenoperation steht, bricht die Funktion mit der Zellposition ab.
 Ist `Foundever` das aktive Blatt, werden dort keine Selbstbezuege auf
 `Foundever` hinzugefuegt.
 
-Bestehende Formeln mit `Auswertung_TP_Skill` und
-`Auswertung_Lidl_Skill` oder `Auswertung_WH_Skill` erhalten ausserdem
-`+Auswertung_FE_Skill`, sofern dieser Summand noch fehlt.
+In allen Arbeitsblaettern ergaenzt das Skript bei Formeln mit
+`Auswertung_TP_Skill` und `Auswertung_Lidl_Skill` oder
+`Auswertung_WH_Skill` den Summanden `+Auswertung_FE_Skill`, sofern er
+noch fehlt. Das gilt auch fuer zusammengesetzte Namen wie
+`TP_Skill_WH_Skill_Lidl_Skill`.
 
-Die Funktion im Apps-Script-Editor der betreffenden Google-Tabelle ausfuehren.
+Die Datei `FoundeverFormeln.gs` in das Apps-Script-Projekt der betreffenden
+Google-Tabelle uebernehmen und dort die Funktion
+`foundeverErgaenzenUndBisZeile34Fuellen()` ausfuehren. Ein GitHub-Push
+aktualisiert das Apps-Script-Projekt der Tabelle nicht automatisch.

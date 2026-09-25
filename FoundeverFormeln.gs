@@ -17,9 +17,12 @@ function foundeverErgaenzenUndBisZeile34Fuellen() {
 
   const entfernt = foundeverMajorelAusBlattEntfernen_(foundeverBlatt);
   if (entfernt > 0) SpreadsheetApp.flush();
+  const skillsErgaenzt = foundeverSkillFormelnErgaenzen_(datei);
+  if (skillsErgaenzt > 0) SpreadsheetApp.flush();
 
   // Im Foundever-Blatt selbst keine Foundever-Blattbezuege hinzufuegen.
   const istFoundeverBlatt = blatt.getName() === 'Foundever';
+  if (istFoundeverBlatt) return;
 
   const letzteSpalte = blatt.getLastColumn();
   if (letzteSpalte === 0) return;
@@ -38,21 +41,16 @@ function foundeverErgaenzenUndBisZeile34Fuellen() {
       const formel = formeln[zeile][spalte];
       if (!formel) continue;
 
-      const info = istFoundeverBlatt ? null : foundeverPaareInFormel_(formel);
-      let neueFormel = info && info.fehlendeBezuege.length
-        ? foundeverFormelErweitern_(formel, info.fehlendeBezuege)
-        : formel;
-      neueFormel = foundeverSkillErgaenzen_(neueFormel);
-      if (neueFormel === formel) continue;
+      const info = foundeverPaareInFormel_(formel);
+      if (!info || info.fehlendeBezuege.length === 0) continue;
 
       blatt.getRange(zeile + 1, spalte + 1)
-        .setFormula(neueFormel);
+        .setFormula(foundeverFormelErweitern_(formel, info.fehlendeBezuege));
       geaendert++;
     }
   }
 
   if (geaendert > 0) SpreadsheetApp.flush();
-  if (istFoundeverBlatt) return;
 
   // R1C1 verschiebt beim Fuellen alle relativen Zellbezuege passend.
   const zielbereich = blatt.getRange(1, 1, ZIELZEILE, letzteSpalte);
@@ -79,14 +77,47 @@ function foundeverErgaenzenUndBisZeile34Fuellen() {
   }
 }
 
+/** Skill-Formeln in allen Blaettern suchen, unabhaengig vom aktiven Blatt. */
+function foundeverSkillFormelnErgaenzen_(datei) {
+  const zellen = datei.createTextFinder('TP_Skill')
+    .matchFormulaText(true)
+    .findAll();
+  let geaendert = 0;
+
+  for (const zelle of zellen) {
+    const formel = zelle.getFormula();
+    if (!formel) continue;
+    const neueFormel = foundeverSkillErgaenzen_(formel);
+    if (neueFormel === formel) continue;
+    zelle.setFormula(neueFormel);
+    geaendert++;
+  }
+  return geaendert;
+}
+
 /** TP-Skill zusammen mit Lidl- oder WH-Skill braucht auch den FE-Skill. */
 function foundeverSkillErgaenzen_(formel) {
   const ohneText = formel.replace(/"(?:[^"]|"")*"/g, '""');
-  const tp = /\bAuswertung_TP_Skill\b(?!\s*'?\s*!)/i.test(ohneText);
-  const partner = /\bAuswertung_(?:Lidl|WH)_Skill\b(?!\s*'?\s*!)/i.test(ohneText);
-  const feVorhanden = /\bAuswertung_FE_Skill\b(?!\s*'?\s*!)/i.test(ohneText);
+  const namen = /[A-Za-z_][A-Za-z0-9_]*/g;
+  const skills = new Set();
+  let treffer;
 
-  if (!tp || !partner || feVorhanden) return formel;
+  while ((treffer = namen.exec(ohneText)) !== null) {
+    const name = treffer[0];
+    const teile = /^(?:Auswertung_)?((?:TP|WH|Lidl|FE)_Skill(?:_(?:TP|WH|Lidl|FE)_Skill)*)$/i
+      .exec(name);
+    if (!teile) continue;
+
+    // Gleichnamige Arbeitsblaetter wie 'Auswertung_TP_Skill'!A1 auslassen.
+    if (/^\s*'?\s*!/.test(ohneText.slice(namen.lastIndex))) continue;
+    for (const skill of teile[1].match(/(?:TP|WH|Lidl|FE)_Skill/gi)) {
+      skills.add(skill.split('_')[0].toUpperCase());
+    }
+  }
+
+  if (!skills.has('TP') ||
+      !(skills.has('WH') || skills.has('LIDL')) ||
+      skills.has('FE')) return formel;
   return formel.replace(/\s+$/, '') + '+Auswertung_FE_Skill';
 }
 
