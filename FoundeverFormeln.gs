@@ -2,15 +2,23 @@
  * Ergaenzt Foundever in Formeln des aktiven Arbeitsblatts, sobald
  * Teleperformance und Concentrix denselben Zellbezug enthalten.
  * Fuellt leere Zellen in betroffenen Spalten bis Zeile 34 auf.
+ * Entfernt ausserdem Majorel-Summanden aus dem Blatt Foundever.
  */
 function foundeverErgaenzenUndBisZeile34Fuellen() {
   const ZIELZEILE = 34;
   const blatt = SpreadsheetApp.getActiveSheet();
   const datei = blatt.getParent();
 
-  if (!datei.getSheetByName('Foundever')) {
+  const foundeverBlatt = datei.getSheetByName('Foundever');
+  if (!foundeverBlatt) {
     throw new Error('Das Arbeitsblatt "Foundever" wurde nicht gefunden.');
   }
+
+  const entfernt = foundeverMajorelAusBlattEntfernen_(foundeverBlatt);
+  if (entfernt > 0) SpreadsheetApp.flush();
+
+  // Im Foundever-Blatt selbst keine Foundever-Bezuege hinzufuegen.
+  if (blatt.getName() === 'Foundever') return;
 
   const letzteSpalte = blatt.getLastColumn();
   if (letzteSpalte === 0) return;
@@ -63,6 +71,124 @@ function foundeverErgaenzenUndBisZeile34Fuellen() {
       }
     }
   }
+}
+
+/** Alle Majorel-Bezuege im Blatt Foundever vor dem Schreiben pruefen. */
+function foundeverMajorelAusBlattEntfernen_(blatt) {
+  const letzteZeile = blatt.getLastRow();
+  const letzteSpalte = blatt.getLastColumn();
+  if (letzteZeile === 0 || letzteSpalte === 0) return 0;
+
+  const formeln = blatt.getRange(1, 1, letzteZeile, letzteSpalte).getFormulas();
+  const aenderungen = [];
+  const nichtAdditiv = [];
+
+  for (let zeile = 0; zeile < letzteZeile; zeile++) {
+    for (let spalte = 0; spalte < letzteSpalte; spalte++) {
+      const formel = formeln[zeile][spalte];
+      if (!formel || !foundeverHatMajorelBezug_(formel)) continue;
+
+      const neueFormel = foundeverMajorelAusFormelEntfernen_(formel);
+      if (foundeverHatMajorelBezug_(neueFormel)) {
+        nichtAdditiv.push('Zeile ' + (zeile + 1) + ', Spalte ' + (spalte + 1));
+      } else if (neueFormel !== formel) {
+        aenderungen.push({ zeile: zeile + 1, spalte: spalte + 1, formel: neueFormel });
+      }
+    }
+  }
+
+  if (nichtAdditiv.length) {
+    throw new Error(
+      'Majorel-Bezuege in Foundever konnten nicht sicher als Summanden entfernt werden: ' +
+      nichtAdditiv.slice(0, 5).join('; ')
+    );
+  }
+
+  for (const eintrag of aenderungen) {
+    blatt.getRange(eintrag.zeile, eintrag.spalte).setFormula(eintrag.formel);
+  }
+  return aenderungen.length;
+}
+
+/** Nur echte Blattbezuege erkennen, nicht Text innerhalb von Anfuehrungszeichen. */
+function foundeverHatMajorelBezug_(formel) {
+  const ohneText = formel.replace(/"(?:[^"]|"")*"/g, '""');
+  return /(?:'Auswertung_Majorel_Skill'|Auswertung_Majorel_Skill)!\s*\$?[A-Z]{1,3}\$?\d+/i
+    .test(ohneText);
+}
+
+/** Einzelne Majorel-Summanden mit beliebiger Zelladresse entfernen. */
+function foundeverMajorelAusFormelEntfernen_(formel) {
+  const bezug = "(?:'Auswertung_Majorel_Skill'|Auswertung_Majorel_Skill)!\\s*\\$?[A-Z]{1,3}\\$?\\d+";
+  let ergebnis = formel;
+  const grenzen = foundeverSummenKlammern_(ergebnis);
+
+  // Ein ganzes SUMME/SUM-Argument darf samt Trennzeichen verschwinden.
+  if (grenzen) {
+    const inhalt = ergebnis.slice(grenzen.auf + 1, grenzen.zu);
+    const trennzeichen = foundeverOberstesTrennzeichen_(inhalt);
+    const ganzesArgument = new RegExp('^\\s*\\+?\\s*' + bezug + '\\s*$', 'i');
+
+    if (trennzeichen) {
+      const argumente = foundeverSummenArgumente_(inhalt, trennzeichen);
+      const behalten = argumente.filter(argument => !ganzesArgument.test(argument));
+      if (behalten.length !== argumente.length) {
+        ergebnis = behalten.length
+          ? ergebnis.slice(0, grenzen.auf + 1) +
+            behalten.join(trennzeichen) + ergebnis.slice(grenzen.zu)
+          : '=0';
+      }
+    } else if (ganzesArgument.test(inhalt)) {
+      ergebnis = '=0';
+    }
+  }
+
+  // Anfuehrungszeichen-Inhalte unveraendert lassen.
+  const teile = ergebnis.split(/("(?:[^"]|"")*")/g);
+  for (let i = 0; i < teile.length; i += 2) {
+    let teil = teile[i];
+    const allein = new RegExp('^\\s*=\\s*\\+?\\s*' + bezug + '\\s*$', 'i');
+    const fuehrend = new RegExp('(^|[=(;,])\\s*\\+?\\s*' + bezug + '\\s*\\+\\s*', 'gi');
+    const summand = new RegExp('[+-]\\s*' + bezug + '(?=\\s*(?:[+\\-);,]|$))', 'gi');
+
+    if (allein.test(teil)) {
+      teil = '=0';
+    } else {
+      teil = teil.replace(fuehrend, (_, vorzeichen) => vorzeichen);
+      teil = teil.replace(summand, (treffer, position, text) => {
+        let davor = position - 1;
+        while (davor >= 0 && /\s/.test(text[davor])) davor--;
+        return davor < 0 || !/[A-Za-z0-9_$)\]]/.test(text[davor]) ? treffer : '';
+      });
+    }
+    teile[i] = teil;
+  }
+  return teile.join('');
+}
+
+/** SUMME/SUM-Argumente trennen, ohne innere Funktionen zu zerlegen. */
+function foundeverSummenArgumente_(inhalt, trennzeichen) {
+  const argumente = [];
+  let start = 0;
+  let tiefe = 0;
+  let inText = false;
+
+  for (let i = 0; i < inhalt.length; i++) {
+    const zeichen = inhalt[i];
+    if (zeichen === '"') {
+      if (inText && inhalt[i + 1] === '"') { i++; continue; }
+      inText = !inText;
+    } else if (!inText) {
+      if (zeichen === '(') tiefe++;
+      else if (zeichen === ')') tiefe--;
+      else if (tiefe === 0 && zeichen === trennzeichen) {
+        argumente.push(inhalt.slice(start, i));
+        start = i + 1;
+      }
+    }
+  }
+  argumente.push(inhalt.slice(start));
+  return argumente;
 }
 
 /** Gleiche Zellbezuege der beiden Dienstleister suchen und Duplikate vermeiden. */
