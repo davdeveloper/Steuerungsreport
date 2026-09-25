@@ -3,6 +3,7 @@
  * Teleperformance und Concentrix denselben Zellbezug enthalten.
  * Fuellt leere Zellen in betroffenen Spalten bis Zeile 34 auf.
  * Entfernt ausserdem Majorel-Summanden aus dem Blatt Foundever.
+ * Ergaenzt Auswertung_FE_Skill bei passenden Skill-Formeln.
  */
 function foundeverErgaenzenUndBisZeile34Fuellen() {
   const ZIELZEILE = 34;
@@ -17,8 +18,8 @@ function foundeverErgaenzenUndBisZeile34Fuellen() {
   const entfernt = foundeverMajorelAusBlattEntfernen_(foundeverBlatt);
   if (entfernt > 0) SpreadsheetApp.flush();
 
-  // Im Foundever-Blatt selbst keine Foundever-Bezuege hinzufuegen.
-  if (blatt.getName() === 'Foundever') return;
+  // Im Foundever-Blatt selbst keine Foundever-Blattbezuege hinzufuegen.
+  const istFoundeverBlatt = blatt.getName() === 'Foundever';
 
   const letzteSpalte = blatt.getLastColumn();
   if (letzteSpalte === 0) return;
@@ -37,16 +38,21 @@ function foundeverErgaenzenUndBisZeile34Fuellen() {
       const formel = formeln[zeile][spalte];
       if (!formel) continue;
 
-      const info = foundeverPaareInFormel_(formel);
-      if (!info || info.fehlendeBezuege.length === 0) continue;
+      const info = istFoundeverBlatt ? null : foundeverPaareInFormel_(formel);
+      let neueFormel = info && info.fehlendeBezuege.length
+        ? foundeverFormelErweitern_(formel, info.fehlendeBezuege)
+        : formel;
+      neueFormel = foundeverSkillErgaenzen_(neueFormel);
+      if (neueFormel === formel) continue;
 
       blatt.getRange(zeile + 1, spalte + 1)
-        .setFormula(foundeverFormelErweitern_(formel, info.fehlendeBezuege));
+        .setFormula(neueFormel);
       geaendert++;
     }
   }
 
   if (geaendert > 0) SpreadsheetApp.flush();
+  if (istFoundeverBlatt) return;
 
   // R1C1 verschiebt beim Fuellen alle relativen Zellbezuege passend.
   const zielbereich = blatt.getRange(1, 1, ZIELZEILE, letzteSpalte);
@@ -71,6 +77,17 @@ function foundeverErgaenzenUndBisZeile34Fuellen() {
       }
     }
   }
+}
+
+/** TP-Skill zusammen mit Lidl- oder WH-Skill braucht auch den FE-Skill. */
+function foundeverSkillErgaenzen_(formel) {
+  const ohneText = formel.replace(/"(?:[^"]|"")*"/g, '""');
+  const tp = /\bAuswertung_TP_Skill\b(?!\s*'?\s*!)/i.test(ohneText);
+  const partner = /\bAuswertung_(?:Lidl|WH)_Skill\b(?!\s*'?\s*!)/i.test(ohneText);
+  const feVorhanden = /\bAuswertung_FE_Skill\b(?!\s*'?\s*!)/i.test(ohneText);
+
+  if (!tp || !partner || feVorhanden) return formel;
+  return formel.replace(/\s+$/, '') + '+Auswertung_FE_Skill';
 }
 
 /** Alle Majorel-Bezuege im Blatt Foundever vor dem Schreiben pruefen. */

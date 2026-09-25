@@ -15,6 +15,11 @@ Bezuege auf `Auswertung_Majorel_Skill` (z. B. `+Auswertung_Majorel_Skill!B6`
 oder `+Auswertung_Majorel_Skill!O34`). Auch eigenstaendige Argumente in
 `SUMME(...)` werden entfernt. Falls ein Majorel-Bezug in einer anderen
 Rechenoperation steht, bricht die Funktion mit der Zellposition ab.
-Ist `Foundever` das aktive Blatt, wird nur diese Bereinigung ausgefuehrt.
+Ist `Foundever` das aktive Blatt, werden dort keine Selbstbezuege auf
+`Foundever` hinzugefuegt.
+
+Bestehende Formeln mit `Auswertung_TP_Skill` und
+`Auswertung_Lidl_Skill` oder `Auswertung_WH_Skill` erhalten ausserdem
+`+Auswertung_FE_Skill`, sofern dieser Summand noch fehlt.
 
 Die Funktion im Apps-Script-Editor der betreffenden Google-Tabelle ausfuehren.
