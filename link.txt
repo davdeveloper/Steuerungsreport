@@ -1,1 +1,43 @@
-https://docs.google.com/spreadsheets/d/18QAePMBCHy1hDuwsK8ybnfgH8OXMvcidJhWGmn1Cj48/edit?usp=sharing
+{
+    "cardsV2": [
+        {
+            "cardId": "newsCard",
+            "card": {
+                "sections": [
+                    {
+                        "widgets": [
+                            {
+                                "image": {
+                                    "imageUrl": "<<[Bild]>>"
+                                }
+                            },
+                            {
+                                "textParagraph": {
+                                    "text": "<b>📢 Es gibt News im Bereich <<[Team]>></b>\n\n<b>Thema:</b> <<[Title]>>\n\n<<[Beschreibung]>>"
+                                }
+                            },
+                            {
+                                "buttonList": {
+                                    "buttons": [
+                                        {
+                                            "text": "News im Browser öffnen",
+                                            "onClick": {
+                                                "openLink": {
+                                                     "url": "<<[Teilbarerlink]>>"
+
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    ]
+}
+
+
+https://chat.googleapis.com/v1/spaces/AAQANudsbYs/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=azByMJZy3mFsr78JYBxU62OVlMSdZWmbi5k83iaTTQI
