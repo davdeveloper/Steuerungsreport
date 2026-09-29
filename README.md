@@ -28,3 +28,8 @@ Die Datei `FoundeverFormeln.gs` in das Apps-Script-Projekt der betreffenden
 Google-Tabelle uebernehmen und dort die Funktion
 `foundeverErgaenzenUndBisZeile34Fuellen()` ausfuehren. Ein GitHub-Push
 aktualisiert das Apps-Script-Projekt der Tabelle nicht automatisch.
+
+## FE-Auswertung: Malusformel
+
+Die Formel fuer `X17` mit der Text-Staffel in `AB` und den Malussaetzen
+in `AC` steht in [formeln/FE-Auswertung-X17-Malus.md](formeln/FE-Auswertung-X17-Malus.md).
