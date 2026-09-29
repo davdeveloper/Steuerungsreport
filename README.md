@@ -31,5 +31,5 @@ aktualisiert das Apps-Script-Projekt der Tabelle nicht automatisch.
 
 ## FE-Auswertung: Malusformel
 
-Die Formel fuer `X17` mit der Text-Staffel in `AB` und den Malussaetzen
+Die Formel fuer `X17` mit den Prozentgrenzen in `AB` und den Malussaetzen
 in `AC` steht in [formeln/FE-Auswertung-X17-Malus.md](formeln/FE-Auswertung-X17-Malus.md).
