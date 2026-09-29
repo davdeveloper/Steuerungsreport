@@ -1,13 +1,15 @@
-# FE-Auswertung: voraussichtlicher Malus in X17
+# FE-Auswertung: Malussatz und Malusbetrag
 
-Die Formel liest die Abnahmequote aus **X16**, die Staffeltexte aus **AB** und echte Prozentwerte aus **AC**. Sie sucht die Staffel in den Zeilen 1 bis 30; die genaue Startzeile ist damit unerheblich. AC enthält nach dem neuen Screenshot positive Werte wie `1,00 %`. X17 gibt den Malus wie in der ursprünglichen Staffel **negativ** aus (`−1,00 %`). X17 als Prozent formatieren. X16 darf intern `0,93` (als `93 %` formatiert) oder die Zahl `93` enthalten.
+## Aktuelle Staffel aus dem Screenshot
+
+In AB steht in der ersten Staffelzeile der Text `95 - 100`, darunter stehen **Zahlen** wie `94,9`, `92,9` und `90,9`. In AC stehen echte positive Prozentwerte `0 %`, `1 %`, `2 %` usw. Die frühere Formel behandelte AB als reine Textspalte und ist für diesen Aufbau nicht geeignet.
+
+Diese Formel ermittelt **nur den Malussatz**. Sie kann zum Prüfen in eine freie Hilfszelle außerhalb von AB:AC gesetzt werden. Bei `93,3 %` in X16 liefert sie `1 %`; erst ab `95 %` liefert sie `0 %`.
 
 ```gs
-=WENN(NICHT(ISTZAHL(X16));"Quote in X16 prüfen";WENNFEHLER(LET(gueltig;ARRAYFORMULA(REGEXMATCH($AB$1:$AB$30;"[0-9]")*ISTZAHL($AC$1:$AC$30));labels;FILTER($AB$1:$AB$30;gueltig);saetze;FILTER($AC$1:$AC$30;gueltig);quote;WENN(X16>1;X16;X16*100);grenzen;ARRAYFORMULA(WERT(REGEXEXTRACT(labels;"[0-9]+(?:,[0-9]+)?")));-ABS(INDEX(saetze;VERGLEICH(MIN(95;RUNDEN(quote;1));grenzen;-1))));"Staffel AB:AC prüfen"))
+=WENN(NICHT(ISTZAHL(X16));"Quote in X16 prüfen";WENNFEHLER(LET(quote;WENN(X16>1;X16;X16*100);gueltig;ARRAYFORMULA(ISTZAHL($AB$1:$AB$30)*ISTZAHL($AC$1:$AC$30));grenzen;FILTER($AB$1:$AB$30;gueltig);saetze;FILTER($AC$1:$AC$30;gueltig);WENN(quote>=95;0;INDEX(saetze;VERGLEICH(RUNDEN(quote;1);grenzen;-1))));"Staffel AB:AC prüfen"))
 ```
 
-Die Einträge in AB müssen nach der **ersten Prozentzahl absteigend** stehen, wie auf dem Screenshot: `95 - 100 %`, `Ab 94,9 % und darunter`, `Ab 92,9 % und darunter` usw. Die Werte in AC müssen echte Zahlen im Prozentformat sein: `1,00 %` hat intern den Wert `0,01`. Die Quote wird auf eine Nachkommastelle gerundet, passend zur Staffel. Die erste Zeile `95 - 100 %` ergibt nur bei mindestens 95 % den Satz 0 %. Soll X17 den Malus als positive Höhe anzeigen, `-ABS(...)` durch `ABS(...)` ersetzen.
+Die numerischen Grenzen in AB müssen absteigend sortiert sein. Für einen **Malusbetrag in Euro** braucht X17 zusätzlich die vertragliche Berechnungsbasis. Im Screenshot stehen `Pauschale (€ / Monat)`, `Preis je Kontakt (€)`, `Malus-Regel` und `Kontakte bis Pauschale` noch auf `fehlt`. Deshalb darf X17 derzeit keinen scheinbar gültigen Betrag `0 €` ausgeben. Je nach Vertrag ist die allgemeine Rechnung `−Malussatz × vereinbarte Berechnungsbasis`.
 
-Beispiele: X16 = `95 %` ergibt `0 %`; `93 %` oder die Zahl `93` ergibt `-1 %`; `92,9 %` ergibt `-2 %`; `70,9 %` ergibt `-13 %`. Unterhalb von 70,9 % bleibt der letzte vorhandene Satz maßgeblich. Für einen Malus **in Euro** fehlt die vertragliche Berechnungsgrundlage; dafür reicht die AB/AC-Staffel allein nicht.
-
-Die Formel wurde noch nicht in der Tabelle des Screenshots ausgeführt; dafür ist deren Link nötig. Der sichtbare `#REF!`-Fehler in „Abnahme Monat Gesamt %“ wird durch X17 nicht behoben.
+Die verlinkte Datei im Repository (`link.txt`) ist eine andere Tabellenkopie als die Fotos. Deshalb sind die aktuellen Zelladressen der Foundever-Variablen noch nicht verifiziert. Der sichtbare `#REF!`-Fehler bei „Abnahme Monat Gesamt %“ ist eine weitere, unabhängige Formelstelle.
