@@ -1,15 +1,13 @@
-# FE-Auswertung: Malussatz und Malusbetrag
+# FE-Auswertung: Malussatz in X17
 
-## Aktuelle Staffel aus dem Screenshot
+X17 soll **nur den Malussatz aus AC als Prozentwert** anzeigen. X16 enthält die Abnahmequote; die Grenzen in AB stehen als Zahlen ohne Prozentzeichen (`94,9`, `92,9` usw.). Die erste Grenze `95 - 100` ist Text und wird gesondert behandelt. AC enthält echte Prozentwerte (`0,00 %`, `1,00 %` usw.).
 
-In AB steht in der ersten Staffelzeile der Text `95 - 100`, darunter stehen **Zahlen** wie `94,9`, `92,9` und `90,9`. In AC stehen echte positive Prozentwerte `0 %`, `1 %`, `2 %` usw. Die frühere Formel behandelte AB als reine Textspalte und ist für diesen Aufbau nicht geeignet.
-
-Diese Formel ermittelt **nur den Malussatz**. Sie kann zum Prüfen in eine freie Hilfszelle außerhalb von AB:AC gesetzt werden. Bei `93,3 %` in X16 liefert sie `1 %`; erst ab `95 %` liefert sie `0 %`.
+**Diese Formel direkt in X17 einfügen und X17 als Prozent formatieren:**
 
 ```gs
 =WENN(NICHT(ISTZAHL(X16));"Quote in X16 prüfen";WENNFEHLER(LET(quote;WENN(X16>1;X16;X16*100);gueltig;ARRAYFORMULA(ISTZAHL($AB$1:$AB$30)*ISTZAHL($AC$1:$AC$30));grenzen;FILTER($AB$1:$AB$30;gueltig);saetze;FILTER($AC$1:$AC$30;gueltig);WENN(quote>=95;0;INDEX(saetze;VERGLEICH(RUNDEN(quote;1);grenzen;-1))));"Staffel AB:AC prüfen"))
 ```
 
-Die numerischen Grenzen in AB müssen absteigend sortiert sein. Für einen **Malusbetrag in Euro** braucht X17 zusätzlich die vertragliche Berechnungsbasis. Im Screenshot stehen `Pauschale (€ / Monat)`, `Preis je Kontakt (€)`, `Malus-Regel` und `Kontakte bis Pauschale` noch auf `fehlt`. Deshalb darf X17 derzeit keinen scheinbar gültigen Betrag `0 €` ausgeben. Je nach Vertrag ist die allgemeine Rechnung `−Malussatz × vereinbarte Berechnungsbasis`.
+Die Formel akzeptiert in X16 sowohl einen echten Prozentwert mit internem Wert `0,933` als auch die Zahl `93,3`. Die numerischen Grenzen in AB müssen absteigend stehen. Sie wählt für `93,3 %` die Grenze `94,9` und damit den AC-Satz `1,00 %`. Ab `95 %` gibt sie `0,00 %` aus; bei `92,9 %` den Satz `2,00 %`. Der Wert wird **nicht** in Euro umgerechnet und nicht negativ gemacht.
 
-Die verlinkte Datei im Repository (`link.txt`) ist eine andere Tabellenkopie als die Fotos. Deshalb sind die aktuellen Zelladressen der Foundever-Variablen noch nicht verifiziert. Der sichtbare `#REF!`-Fehler bei „Abnahme Monat Gesamt %“ ist eine weitere, unabhängige Formelstelle.
+Die Formel wurde mit dem neuen AB/AC-Aufbau in einer deutschen Google-Tabelle getestet. Die verlinkte Datei in `link.txt` ist eine andere Tabellenkopie als die Fotos; X17 in der abgebildeten Kopie wurde nicht direkt geändert.
