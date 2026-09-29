@@ -1,1 +1,36 @@
-https://www.appsheet.com/image/getimageurl?appName=News-LidlIreland-730069849&tableName=DB_CC_News&fileName=DB_CC_News_Images%2Fb6fd6826.Image.211259.jpg&appVersion=1.000103&signature=9179bdc90336dceee6b382c66d514773fea3ee6b95975d019f24c023a02bc082
+{
+  "cardsV2": [{
+    "cardId": "newsCard",
+    "card": {
+      "sections": [{
+        "widgets": [
+          <<If: ISNOTBLANK([Image])>>
+          {
+            "image": {
+              "imageUrl": "<<[Image]>>",
+              "altText": "News image"
+            }
+          },
+          <<EndIf>>
+          {
+            "textParagraph": {
+              "text": "<b>📢 New update for <<[Team]>></b><br><br><b>Topic:</b> <<[Title]>><br><br><<[Beschreibung]>>"
+            }
+          },
+          {
+            "buttonList": {
+              "buttons": [{
+                "text": "Open news in browser",
+                "onClick": {
+                  "openLink": {
+                    "url": "<<[Teilbarerlink]>>"
+                  }
+                }
+              }]
+            }
+          }
+        ]
+      }]
+    }
+  }]
+}
