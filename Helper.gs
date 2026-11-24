@@ -7,7 +7,7 @@ const RAW_EXPORT_PROVIDERS = [
   { sheetName: "Foundever", code: "Foundever", location: "Foundever", folderId: FOUNDEVER_EXPORT_FOLDER_ID }
 ];
 
-const MANUAL_EXPORT_RECIPIENT = "shoan_david.scharrer@lidl.de";
+const MANUAL_EXPORT_RECIPIENT = "tagessteuerung.lks@lidl.de";
 
 /** Ziele für die Bereitstellung der ausgewerteten Dienstleister-Reports. */
 function getDLExportTargets(ss) {

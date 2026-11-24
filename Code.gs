@@ -657,9 +657,10 @@ function startManualSendFromMenu(selection) {
       DriveApp.getFileById(report.getId()).setTrashed(true);
     }
 
-    updateProgress("Versende Testmail...", 90);
+    updateProgress("Sende E-Mail zur Prüfung an die Tagessteuerung...", 90);
     const subject = "Steuerungsreport und Rohdaten für " + provider.sheetName + " (" + selection.date.trim() + ")";
-    const body = "Hallo zusammen,\n\nanbei die gewünschte Auswertung.\n\nMit freundlichen Grüßen";
+    const body = "Hallo zusammen,\n\nbitte prüft den angehängten Steuerungsreport und die Rohdaten. " +
+        "Leitet diese E-Mail anschließend mit den Anhängen an " + provider.sheetName + " weiter.\n\nMit freundlichen Grüßen";
     const options = { attachments: attachments };
     const groupSender = "tagessteuerung.lks@lidl.de";
     if (GmailApp.getAliases().includes(groupSender)) {
@@ -668,7 +669,7 @@ function startManualSendFromMenu(selection) {
     }
     GmailApp.sendEmail(MANUAL_EXPORT_RECIPIENT, subject, body, options);
     closeProgressBar();
-    ss.toast("Testmail für " + provider.sheetName + " an " + MANUAL_EXPORT_RECIPIENT + " versendet.");
+    ss.toast("E-Mail für " + provider.sheetName + " zur Prüfung an " + MANUAL_EXPORT_RECIPIENT + " gesendet.");
   } catch (e) {
     updateProgress("FEHLER: " + e.message, 100);
     ss.toast(e.message, "Abbruch");
@@ -801,9 +802,9 @@ function getDashboardHtml() { return `<!DOCTYPE html><html><head><base target="_
         <select id="mailProvider"><option value="">Bitte auswählen</option>${RAW_EXPORT_PROVIDERS.map(p => '<option>' + p.sheetName + '</option>').join('')}</select>
         <label for="mailDate">Rohdaten für Tag oder Zeitraum</label>
         <input id="mailDate" type="text" placeholder="TT.MM.JJJJ oder TT.MM.JJJJ-TT.MM.JJJJ">
-        <div>Testempfänger: ${MANUAL_EXPORT_RECIPIENT}</div>
+        <div>Nach der Prüfung leitet die Tagessteuerung die E-Mail mit den Anhängen an den ausgewählten Dienstleister weiter.</div>
       </div>
-      <button class="btn-i" onclick="sendManualExport()">Testmail mit Excel-Anhängen versenden</button>
+      <button class="btn-i" onclick="sendManualExport()">Zur Prüfung an ${MANUAL_EXPORT_RECIPIENT} senden</button>
       <button onclick="closeManualSend()">Zurück</button>
     </div>
   </div>

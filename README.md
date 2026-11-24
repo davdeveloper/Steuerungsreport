@@ -8,7 +8,9 @@ Für die Übernahme in die Google-Tabelle `Code.gs` und `Helper.gs` im zugehöri
 
 ## Steuerungsreport-/Rohdaten manuell versenden
 
-Im Cockpit **Steuerungsreport-/Rohdaten manuell versenden** öffnen, den Dienstleister wählen und den Tag oder Zeitraum für die Rohdaten angeben. **Testmail mit Excel-Anhängen versenden** schickt den aktuellen Steuerungsreport als Excel-Datei und pro Tag mit passenden Rohdaten eine weitere Excel-Datei an `shoan_david.scharrer@lidl.de`. Für Teleperformance filtert der Versand nach `Location = Teleperformance`, für Concentrix nach `Webhelp` und für Foundever nach `Foundever`. Der Mailversand kann auch ältere Tagesdateien aus der Performance History verwenden.
+Im Cockpit **Steuerungsreport-/Rohdaten manuell versenden** öffnen, den Dienstleister wählen und den Tag oder Zeitraum für die Rohdaten angeben. **Zur Prüfung an tagessteuerung.lks@lidl.de senden** schickt der Tagessteuerung den aktuellen Steuerungsreport und pro Tag mit passenden Rohdaten eine weitere Excel-Datei. Die Tagessteuerung prüft die Anhänge und leitet die E-Mail anschließend an den ausgewählten Dienstleister weiter.
+
+Für Teleperformance filtert der Versand nach `Location = Teleperformance`, für Concentrix nach `Webhelp` und für Foundever nach `Foundever`. Der Mailversand kann auch ältere Tagesdateien aus der Performance History verwenden.
 
 ## Foundever in Summenformeln aufnehmen
 
