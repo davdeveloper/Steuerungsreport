@@ -72,10 +72,18 @@ function startDLExportFromMenu() {
   }
 }
 
-function startCXExportFromMenu(dateStr) { 
+function startCXExportFromMenu(dateStr) {
+  startRawExportFromMenu_(dateStr, exportCXRawData);
+}
+
+function startFoundeverExportFromMenu(dateStr) {
+  startRawExportFromMenu_(dateStr, exportFoundeverRawData);
+}
+
+function startRawExportFromMenu_(dateStr, exportRawData) {
   if (acquireLock()) {
     try {
-      exportCXRawData(dateStr); 
+      exportRawData(dateStr);
     } finally {
       releaseLock();
     }
@@ -478,94 +486,223 @@ function exportSteuerungsreportDL() {
 }
 
 function exportSingleSheet(ss, sName, fId, tName) {
-    const src = ss.getSheetByName(sName);
-    if (!src) throw new Error(sName + " fehlt.");
-    const vals = src.getDataRange().getValues();
-    const folder = DriveApp.getFolderById(fId);
-    const existing = folder.getFilesByName(tName);
-    while (existing.hasNext()) existing.next().setTrashed(true);
-    const newSS = SpreadsheetApp.create(tName);
+  const folder = DriveApp.getFolderById(fId);
+  const newSS = createReportSpreadsheet_(ss, sName, tName);
+  const file = DriveApp.getFileById(newSS.getId());
+  try {
+    file.moveTo(folder);
+  } catch (e) {
+    file.setTrashed(true);
+    throw e;
+  }
+  removeEarlierExports_(folder, tName, file.getId());
+}
+
+function createReportSpreadsheet_(ss, sName, tName) {
+  const src = ss.getSheetByName(sName);
+  if (!src) throw new Error("Reportblatt '" + sName + "' fehlt.");
+  const vals = src.getDataRange().getValues();
+  const newSS = SpreadsheetApp.create(tName);
+  try {
+    const initialSheet = newSS.getSheets()[0];
     const target = src.copyTo(newSS);
     target.setName("Report");
     target.getRange(1, 1, vals.length, vals[0].length).setValues(vals);
-    newSS.deleteSheet(newSS.getSheets()[0]);
-    SpreadsheetApp.flush(); 
-    DriveApp.getFileById(newSS.getId()).moveTo(folder);
+    newSS.deleteSheet(initialSheet);
+    SpreadsheetApp.flush();
+    return newSS;
+  } catch (e) {
+    DriveApp.getFileById(newSS.getId()).setTrashed(true);
+    throw e;
+  }
 }
 
-// --- CX ROHDATEN EXPORT ---
+// --- ROHDATENEXPORT ---
 function exportCXRawData(dateInput) {
+  exportProviderRawData_(dateInput, "Concentrix");
+}
+
+function exportFoundeverRawData(dateInput) {
+  exportProviderRawData_(dateInput, "Foundever");
+}
+
+function getRawExportProvider_(sheetName) {
+  const provider = RAW_EXPORT_PROVIDERS.find(item => item.sheetName === sheetName);
+  if (!provider) throw new Error("Bitte einen gültigen Dienstleister auswählen.");
+  return provider;
+}
+
+function getPerformanceFolder_(ss) {
+  const settings = ss.getSheetByName("Einstellungen_Global");
+  const folderId = settings && settings.getRange("E18").getValue();
+  if (!folderId) throw new Error("Der Performance-History-Ordner fehlt in Einstellungen_Global!E18.");
+  return DriveApp.getFolderById(folderId);
+}
+
+function exportProviderRawData_(dateInput, sheetName) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const wsSettings = ss.getSheetByName("Einstellungen_Global");
-  const FOLDER_ID_PERFORMANCE = wsSettings.getRange("E18").getValue();
-  const TARGET_FOLDER_ID = "1W7pwawnSYUQhVb3JF67ieA7cXE9Wl2Sz";
   resetProgress();
   updateProgress("Analysiere Zeitraum...", 5);
   try {
-    let dates = [];
-    if (dateInput.includes('-')) {
-      let parts = dateInput.split('-'), startD = parseDateString(parts[0].trim()), endD = parseDateString(parts[1].trim());
-      if (!startD || !endD) throw new Error("Ungültiges Datumsformat im Zeitraum.");
-      let curr = new Date(startD);
-      while (curr <= endD) { dates.push(new Date(curr)); curr.setDate(curr.getDate() + 1); }
-    } else {
-      let single = parseDateString(dateInput.trim());
-      if (!single) throw new Error("Ungültiges Datum.");
-      dates.push(single);
-    }
+    const provider = getRawExportProvider_(sheetName);
+    const dates = getRawExportDates_(dateInput);
+    const sourceFolder = getPerformanceFolder_(ss);
+    const targetFolder = DriveApp.getFolderById(provider.folderId);
+    const cutoff = getRawExportCutoff_();
+    let exported = 0;
     for (let i = 0; i < dates.length; i++) {
-      const currentDat = dates[i], fileDateStr = Utilities.formatDate(currentDat, Session.getScriptTimeZone(), "dd.MM.yyyy"), targetDateStr = Utilities.formatDate(currentDat, Session.getScriptTimeZone(), "dd_MM_yyyy");
-      const fileNameSF = fileDateStr + "_SF.xlsx", targetFileName = "Rohdaten_CX_" + targetDateStr + "_2026.xlsx"; 
-      updateProgress("Verarbeite " + fileNameSF + "...", 10 + (i/dates.length)*60);
-      const fileSF = findFileInFolder(FOLDER_ID_PERFORMANCE, fileNameSF);
-      if (!fileSF) continue; 
-      const dataSF = importExcelData(fileSF.getId(), "Performance_History_Contacts_in"); 
-      if (!dataSF || dataSF.length === 0) continue;
-      const headers = dataSF[0];
-      let locIndex = -1;
-      for (let j = 0; j < headers.length; j++) { if (String(headers[j] || "").trim().toLowerCase() === "location") { locIndex = j; break; } }
-      if (locIndex === -1) continue;
-      const filtered = [headers]; 
-      for (let r = 1; r < dataSF.length; r++) { if (dataSF[r][0] !== "" && String(dataSF[r][locIndex] || "").trim().toLowerCase() === "webhelp") filtered.push(dataSF[r]); }
-      if (filtered.length <= 1) continue;
-      const tempSS = SpreadsheetApp.create("Temp_CX_" + targetDateStr);
-      tempSS.getSheets()[0].getRange(1, 1, filtered.length, filtered[0].length).setValues(filtered);
-      SpreadsheetApp.flush();
-      const blob = UrlFetchApp.fetch("https://docs.google.com/spreadsheets/d/" + tempSS.getId() + "/export?format=xlsx", { headers: { 'Authorization': 'Bearer ' + ScriptApp.getOAuthToken() } }).getBlob().setName(targetFileName);
-      const folder = DriveApp.getFolderById(TARGET_FOLDER_ID);
-      const existingFiles = folder.getFilesByName(targetFileName);
-      while(existingFiles.hasNext()) existingFiles.next().setTrashed(true);
-      folder.createFile(blob);
-      DriveApp.getFileById(tempSS.getId()).setTrashed(true);
+      const currentDat = dates[i];
+      if (currentDat < cutoff) continue;
+      updateProgress("Exportiere Rohdaten für " + sheetName + "...", 10 + (i / dates.length) * 60);
+      const blob = createRawExcel_(sourceFolder, provider, currentDat);
+      if (!blob) continue;
+      const file = targetFolder.createFile(blob);
+      removeEarlierExports_(targetFolder, file.getName(), file.getId());
+      exported++;
     }
     updateProgress("Bereinige alte Dateien...", 90);
-    cleanupOldCXFiles(TARGET_FOLDER_ID);
-    updateProgress("Fertig!", 100);
-    Utilities.sleep(1500);
+    cleanupOldRawFiles_(targetFolder, "Rohdaten_" + provider.code + "_", cutoff);
     closeProgressBar();
-    ss.toast("CX-Export fertig.");
-  } catch (e) { updateProgress("FEHLER: " + e.message, 100); ss.toast(e.message, "Abbruch"); }
+    if (dates[dates.length - 1] < cutoff) {
+      ss.toast("Der Zeitraum liegt vor den letzten zwei Arbeitstagen.", sheetName + "-Rohdaten");
+    } else {
+      ss.toast(exported ? sheetName + "-Export fertig." : "Keine Rohdaten für " + sheetName + " im gewählten Zeitraum gefunden.");
+    }
+  } catch (e) {
+    updateProgress("FEHLER: " + e.message, 100);
+    ss.toast(e.message, "Abbruch");
+    throw e;
+  }
+}
+
+function getRawExportDates_(input) {
+  const parts = String(input || "").split("-").map(part => part.trim());
+  if (parts.length > 2) throw new Error("Ungültiger Zeitraum.");
+  const dates = parts.map(part => {
+    const match = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(part);
+    const date = match && parseDateString(part);
+    if (!date || date.getDate() !== Number(match[1]) || date.getMonth() + 1 !== Number(match[2]) || date.getFullYear() !== Number(match[3])) {
+      throw new Error("Bitte ein gültiges Datum im Format TT.MM.JJJJ eingeben.");
+    }
+    return date;
+  });
+  const start = dates[0], end = dates[dates.length - 1];
+  if (start > end) throw new Error("Ungültiger Zeitraum.");
+  const days = [];
+  for (const day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) days.push(new Date(day));
+  return days;
+}
+
+function createRawExcel_(sourceFolder, provider, date) {
+  const timezone = Session.getScriptTimeZone();
+  const sourceName = Utilities.formatDate(date, timezone, "dd.MM.yyyy") + "_SF.xlsx";
+  const files = sourceFolder.getFilesByName(sourceName);
+  if (!files.hasNext()) return null;
+  const data = importExcelData(files.next().getId(), "Performance_History_Contacts_in");
+  if (!data || !data.length) throw new Error(sourceName + " konnte nicht gelesen werden.");
+  const [headers, ...rows] = data;
+  const locationColumn = headers.findIndex(h => String(h).trim().toLowerCase() === "location");
+  if (locationColumn < 0) throw new Error("Spalte 'Location' fehlt in " + sourceName + ".");
+  const location = provider.location.toLowerCase();
+  const filtered = rows.filter(row => row[0] !== "" && String(row[locationColumn]).trim().toLowerCase() === location);
+  if (!filtered.length) return null;
+  const targetDate = Utilities.formatDate(date, timezone, "dd_MM_yyyy");
+  const fileName = "Rohdaten_" + provider.code + "_" + targetDate + "_2026.xlsx";
+  const tempSS = SpreadsheetApp.create("Temp_" + fileName, filtered.length + 1, headers.length);
+  try {
+    tempSS.getSheets()[0].getRange(1, 1, filtered.length + 1, headers.length).setValues([headers, ...filtered]);
+    SpreadsheetApp.flush();
+    return getExcelBlob_(tempSS, fileName);
+  } finally {
+    DriveApp.getFileById(tempSS.getId()).setTrashed(true);
+  }
+}
+
+function getExcelBlob_(spreadsheet, fileName) {
+  const url = "https://docs.google.com/spreadsheets/d/" + spreadsheet.getId() + "/export?format=xlsx";
+  const blob = UrlFetchApp.fetch(url, { headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() } }).getBlob();
+  return blob.setName(fileName);
+}
+
+function removeEarlierExports_(folder, fileName, keepId) {
+  const copies = folder.getFilesByName(fileName);
+  while (copies.hasNext()) {
+    const copy = copies.next();
+    if (copy.getId() !== keepId) copy.setTrashed(true);
+  }
+}
+
+function startManualSendFromMenu(selection) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!acquireLock()) return;
+  try {
+    resetProgress();
+    const provider = getRawExportProvider_(selection && selection.provider);
+    const dates = getRawExportDates_(selection.date);
+    const sourceFolder = getPerformanceFolder_(ss);
+    const attachments = [];
+    for (let i = 0; i < dates.length; i++) {
+      updateProgress("Erstelle Rohdaten für " + provider.sheetName + "...", 10 + (i / dates.length) * 60);
+      const rawFile = createRawExcel_(sourceFolder, provider, dates[i]);
+      if (rawFile) attachments.push(rawFile);
+    }
+    if (!attachments.length) throw new Error("Keine Rohdaten für " + provider.sheetName + " im gewählten Zeitraum gefunden. Es wurde keine E-Mail versendet.");
+
+    updateProgress("Erstelle Steuerungsreport für " + provider.sheetName + "...", 75);
+    const reportName = "Steuerungsreport_" + provider.sheetName;
+    const report = createReportSpreadsheet_(ss, provider.sheetName, "Temp_" + reportName);
+    try {
+      attachments.unshift(getExcelBlob_(report, reportName + ".xlsx"));
+    } finally {
+      DriveApp.getFileById(report.getId()).setTrashed(true);
+    }
+
+    updateProgress("Versende Testmail...", 90);
+    const subject = "Steuerungsreport und Rohdaten für " + provider.sheetName + " (" + selection.date.trim() + ")";
+    const body = "Hallo zusammen,\n\nanbei die gewünschte Auswertung.\n\nMit freundlichen Grüßen";
+    const options = { attachments: attachments };
+    const groupSender = "tagessteuerung.lks@lidl.de";
+    if (GmailApp.getAliases().includes(groupSender)) {
+      options.from = groupSender;
+      options.name = "Tagessteuerung Berlin";
+    }
+    GmailApp.sendEmail(MANUAL_EXPORT_RECIPIENT, subject, body, options);
+    closeProgressBar();
+    ss.toast("Testmail für " + provider.sheetName + " an " + MANUAL_EXPORT_RECIPIENT + " versendet.");
+  } catch (e) {
+    updateProgress("FEHLER: " + e.message, 100);
+    ss.toast(e.message, "Abbruch");
+    throw e;
+  } finally {
+    releaseLock();
+  }
 }
 
 function cleanupOldCXFiles(folderId) {
-  try {
-    const folder = DriveApp.getFolderById(folderId);
-    const files = folder.getFiles();
-    let workdaysCount = 0, checkDate = new Date();
-    checkDate.setHours(12, 0, 0, 0); 
-    while (workdaysCount < 2) { if (isServerWorkDay(checkDate)) workdaysCount++; if (workdaysCount < 2) checkDate.setDate(checkDate.getDate() - 1); }
-    const cutoff = checkDate.getTime();
-    while (files.hasNext()) {
-      const file = files.next(), name = file.getName();
-      if (name.startsWith("Rohdaten_CX_")) {
-        const p = name.split('_');
-        if (p.length >= 5) {
-          const fDate = new Date(parseInt(p[4], 10), parseInt(p[3], 10) - 1, parseInt(p[2], 10), 12, 0, 0);
-          if (fDate.getTime() < cutoff) file.setTrashed(true);
-        }
-      }
-    }
-  } catch (e) {}
+  cleanupOldRawFiles_(DriveApp.getFolderById(folderId), "Rohdaten_CX_", getRawExportCutoff_());
+}
+
+function getRawExportCutoff_() {
+  const checkDate = new Date();
+  checkDate.setHours(12, 0, 0, 0);
+  let remaining = 2;
+  while (true) {
+    if (isServerWorkDay(checkDate)) remaining--;
+    if (!remaining) return checkDate;
+    checkDate.setDate(checkDate.getDate() - 1);
+  }
+}
+
+function cleanupOldRawFiles_(folder, prefix, cutoff) {
+  const files = folder.getFiles();
+  while (files.hasNext()) {
+    const file = files.next(), name = file.getName();
+    if (!name.startsWith(prefix)) continue;
+    const match = /^(\d{2})_(\d{2})_(\d{4})(?:_\d{4})?\.xlsx$/.exec(name.slice(prefix.length));
+    if (!match) continue;
+    const fileDate = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]), 12);
+    if (fileDate < cutoff) file.setTrashed(true);
+  }
 }
 
 function isServerWorkDay(date) {
@@ -600,7 +737,9 @@ function importExcelData(fileId, sheetId) {
     const blob = DriveApp.getFileById(fileId).getBlob();
     const temp = Drive.Files.create({name: "T_"+Date.now(), mimeType: MimeType.GOOGLE_SHEETS}, blob);
     tempId = temp.id;
-    const sheet = SpreadsheetApp.openById(tempId).getSheets()[typeof sheetId==='number'?sheetId:0];
+    const workbook = SpreadsheetApp.openById(tempId);
+    const sheet = typeof sheetId === "number" ? workbook.getSheets()[sheetId] :
+        workbook.getSheetByName(sheetId) || workbook.getSheets()[0];
     const vals = sheet ? sheet.getDataRange().getValues() : [];
     DriveApp.getFileById(tempId).setTrashed(true);
     return vals;
@@ -625,7 +764,7 @@ function getDashboardHtml() { return `<!DOCTYPE html><html><head><base target="_
     .content { padding: 25px; display: flex; flex-direction: column; gap: 15px; flex: 1; overflow-y: auto; }
     .sec { background: #f9f9f9; padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: left; color: #333; }
     label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #333; }
-    input { width: 95%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box; }
+    input, select { width: 95%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box; }
     button { width: 100%; border: none; padding: 12px; border-radius: 5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
     .btn-i { background: #0050AA; color: white; } .btn-i:hover { background: #003d82; }
     .btn-d { background: white; color: #E30613; border: 2px solid #E30613; } .btn-d:hover { background: #fff0f0; }
@@ -644,9 +783,30 @@ function getDashboardHtml() { return `<!DOCTYPE html><html><head><base target="_
     <div class="sec"><label>Neuer Import:</label><div style="font-size:11px;color:#555;margin-bottom:10px">Heute für gestern.</div><input type="date" id="d1" value="${new Date().toISOString().split('T')[0]}"><button class="btn-i" onclick="run('startImportFromMenu','d1')">📥 Import Starten</button></div>
     <div style="font-size: 16px; font-weight: bold; color: #1e8449; margin-bottom: -5px;">Dienstleister Export</div>
     <div class="sec" style="background:#eafaf1;border-color:#d5f5e3"><label style="color:#1e8449">Steuerungsreport Bereitstellen:</label><div style="font-size:11px;color:#555;margin-bottom:10px">Kopiert die Werte für TP, CX und Foundever in den jeweiligen DL-Ordner.</div><button class="btn-i" style="background:#2ecc71" onclick="runExport()">📤 Steuerungsreport bereitstellen</button></div>
-    <div class="sec" style="background:#eafaf1;border-color:#d5f5e3"><label style="color:#1e8449">CX Rohdaten (Webhelp):</label><div style="font-size:11px;color:#555;margin-bottom:10px">Tag (TT.MM.JJJJ) oder Zeitraum (TT.MM.JJJJ-TT.MM.JJJJ).</div><input type="text" id="d_cx" placeholder="TT.MM.JJJJ" style="border-color:#a3e4d7;"><button class="btn-i" style="background:#2ecc71" onclick="runCXExport()">📥 Concentrix Rohdaten bereitstellen</button></div>
+    <div class="sec" style="background:#eafaf1;border-color:#d5f5e3">
+      <label for="d_raw" style="color:#1e8449">Rohdaten bereitstellen</label>
+      <div style="font-size:11px;color:#555;margin-bottom:10px">Tag (TT.MM.JJJJ) oder Zeitraum (TT.MM.JJJJ-TT.MM.JJJJ). Die Ablage wird wie bisher auf die letzten zwei Arbeitstage begrenzt.</div>
+      <input type="text" id="d_raw" placeholder="TT.MM.JJJJ" style="border-color:#a3e4d7;">
+      <button class="btn-i" style="background:#2ecc71" onclick="run('startCXExportFromMenu','d_raw')">📥 Concentrix Rohdaten bereitstellen</button>
+      <button class="btn-i" style="background:#2ecc71;margin-top:8px" onclick="run('startFoundeverExportFromMenu','d_raw')">📥 Foundever Rohdaten bereitstellen</button>
+    </div>
+    <button class="btn-i" onclick="openManualSend()">Steuerungsreport-/Rohdaten manuell versenden</button>
     <div class="sec" style="background:#fdedec;border-color:#fadbd8"><label style="color:#c0392b">Daten löschen:</label><input type="date" id="d2"><button class="btn-d" onclick="confirmDelete()">🗑️ Löschen</button></div>
   </div></div>
+  <div class="card" id="manualSend" style="display:none">
+    <div class="header"><h1>Steuerungsreport-/Rohdaten manuell versenden</h1></div>
+    <div class="content">
+      <div class="sec">
+        <label for="mailProvider">Dienstleister</label>
+        <select id="mailProvider"><option value="">Bitte auswählen</option>${RAW_EXPORT_PROVIDERS.map(p => '<option>' + p.sheetName + '</option>').join('')}</select>
+        <label for="mailDate">Rohdaten für Tag oder Zeitraum</label>
+        <input id="mailDate" type="text" placeholder="TT.MM.JJJJ oder TT.MM.JJJJ-TT.MM.JJJJ">
+        <div>Testempfänger: ${MANUAL_EXPORT_RECIPIENT}</div>
+      </div>
+      <button class="btn-i" onclick="sendManualExport()">Testmail mit Excel-Anhängen versenden</button>
+      <button onclick="closeManualSend()">Zurück</button>
+    </div>
+  </div>
   <div class="confirm-view" id="confirm"><h2>Löschen?</h2><p>Dies kann nicht rückgängig gemacht werden.</p><div class="confirm-btn-group"><button class="btn-yes" onclick="runDeleteConfirmed()">JA</button><button class="btn-no" onclick="cancelDelete()">Nein</button></div></div>
   <div class="container" id="prog"><div class="spin" id="s"></div><h2 id="t">Verarbeite...</h2><div class="warn">Bitte Fenster nicht schließen!</div><div id="msg">Starte...</div><div class="wrap"><div class="bar" id="b"></div></div><div id="p">0%</div></div>
   <script>
@@ -666,11 +826,30 @@ function getDashboardHtml() { return `<!DOCTYPE html><html><head><base target="_
         let checkStr = String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
         if (d.getDay() === 0 || holidays.includes(checkStr)) { d.setDate(d.getDate() - 1); } else { isHoliday = false; }
       }
-      document.getElementById('d_cx').value = String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear();
+      document.getElementById('d_raw').value = String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear();
     };
     function run(f,i){const d=document.getElementById(i).value;if(!d)return alert("Datum!");switchToProgress();startProcess(f,d)}
     function runExport(){switchToProgress();startProcess('startDLExportFromMenu',null)}
-    function runCXExport(){const d = document.getElementById('d_cx').value;if(!d)return alert("Datum!");switchToProgress();startProcess('startCXExportFromMenu', d)}
+    function openManualSend() {
+      document.getElementById('mailDate').value = document.getElementById('d_raw').value;
+      document.getElementById('mailProvider').value = '';
+      document.getElementById('menu').style.display = 'none';
+      document.getElementById('manualSend').style.display = 'flex';
+      document.getElementById('mailProvider').focus();
+    }
+    function closeManualSend() {
+      document.getElementById('manualSend').style.display = 'none';
+      document.getElementById('menu').style.display = 'flex';
+    }
+    function sendManualExport() {
+      const provider = document.getElementById('mailProvider').value;
+      const date = document.getElementById('mailDate').value.trim();
+      if (!provider) return alert("Bitte einen Dienstleister auswählen.");
+      if (!date) return alert("Bitte einen Tag oder Zeitraum eingeben.");
+      document.getElementById('manualSend').style.display = 'none';
+      switchToProgress();
+      startProcess('startManualSendFromMenu', { provider: provider, date: date });
+    }
     function confirmDelete(){const d=document.getElementById('d2').value;if(!d)return alert("Datum!");document.getElementById('menu').style.display='none';document.getElementById('confirm').style.display='flex'}
     function cancelDelete(){document.getElementById('confirm').style.display='none';document.getElementById('menu').style.display='flex'}
     function runDeleteConfirmed(){const d=document.getElementById('d2').value;document.getElementById('confirm').style.display='none';switchToProgress();startProcess('startDeleteFromMenu',d)}

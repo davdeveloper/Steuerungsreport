@@ -1,5 +1,14 @@
-Foundever Ordner Google
-https://drive.google.com/drive/folders/1SnMraecpyMgILcNPK-waZ5t_OsCAy0T3
+## Foundever-Export im Steuerungs-Cockpit
+
+* **Steuerungsreport bereitstellen** kopiert das Blatt `Foundever` mit seinen Werten und seiner Formatierung als `Steuerungsreport_Foundever` in den [Foundever-Ordner](https://drive.google.com/drive/folders/1SnMraecpyMgILcNPK-waZ5t_OsCAy0T3). Derselbe Lauf stellt auch die Reports für Teleperformance und Concentrix bereit.
+* **Foundever Rohdaten bereitstellen** liest für den gewählten Tag oder Zeitraum die Tagesdateien `TT.MM.JJJJ_SF.xlsx` aus dem Performance-History-Ordner in `Einstellungen_Global!E18`. Pro Tag mit Treffern entsteht im Foundever-Ordner die Datei `Rohdaten_Foundever_TT_MM_JJJJ_2026.xlsx` mit der Kopfzeile und allen Quellspalten in Originalreihenfolge. Für Foundever zählt der Wert `Foundever` in der Spalte `Location`, für den Concentrix-Button weiterhin `Webhelp`.
+* Ein erneuter Export ersetzt die gleichnamige Rohdatendatei. Die Bereinigung entfernt ältere Rohdaten des gewählten Dienstleisters. Die Aufbewahrung beginnt mit dem zweiten Arbeitstag, von heute rückwärts gezählt.
+
+Für die Übernahme in die Google-Tabelle `Code.gs` und `Helper.gs` im zugehörigen Apps-Script-Projekt aktualisieren und die Tabelle neu laden.
+
+## Steuerungsreport-/Rohdaten manuell versenden
+
+Im Cockpit **Steuerungsreport-/Rohdaten manuell versenden** öffnen, den Dienstleister wählen und den Tag oder Zeitraum für die Rohdaten angeben. **Testmail mit Excel-Anhängen versenden** schickt den aktuellen Steuerungsreport als Excel-Datei und pro Tag mit passenden Rohdaten eine weitere Excel-Datei an `shoan_david.scharrer@lidl.de`. Für Teleperformance filtert der Versand nach `Location = Teleperformance`, für Concentrix nach `Webhelp` und für Foundever nach `Foundever`. Der Mailversand kann auch ältere Tagesdateien aus der Performance History verwenden.
 
 ## Foundever in Summenformeln aufnehmen
 

@@ -1,7 +1,15 @@
-/**
- * Ziele für die Bereitstellung der ausgewerteten Dienstleister-Reports.
- * Foundever erhält nur den Report, keinen separaten Rohdatenexport.
- */
+// Gemeinsames Ziel für Foundever-Report und -Rohdaten aus der Datei drive_foundever.
+const FOUNDEVER_EXPORT_FOLDER_ID = "1SnMraecpyMgILcNPK-waZ5t_OsCAy0T3";
+
+const RAW_EXPORT_PROVIDERS = [
+  { sheetName: "Teleperformance", code: "TP", location: "Teleperformance" },
+  { sheetName: "Concentrix", code: "CX", location: "Webhelp", folderId: "1W7pwawnSYUQhVb3JF67ieA7cXE9Wl2Sz" },
+  { sheetName: "Foundever", code: "Foundever", location: "Foundever", folderId: FOUNDEVER_EXPORT_FOLDER_ID }
+];
+
+const MANUAL_EXPORT_RECIPIENT = "shoan_david.scharrer@lidl.de";
+
+/** Ziele für die Bereitstellung der ausgewerteten Dienstleister-Reports. */
 function getDLExportTargets(ss) {
   const wsSettings = ss.getSheetByName("Einstellungen_Global");
   if (!wsSettings) throw new Error("Blatt 'Einstellungen_Global' fehlt.");
@@ -19,7 +27,7 @@ function getDLExportTargets(ss) {
     },
     {
       sheetName: "Foundever",
-      folderId: "1SnMraecpyMgILcNPK-waZ5t_OsCAy0T3",
+      folderId: FOUNDEVER_EXPORT_FOLDER_ID,
       fileName: "Steuerungsreport_Foundever"
     }
   ];
