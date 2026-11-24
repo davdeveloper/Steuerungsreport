@@ -667,11 +667,9 @@ function startManualSendFromMenu(selection) {
       options.from = groupSender;
       options.name = "Tagessteuerung Berlin";
     }
-    // Nach dem Test wieder MANUAL_EXPORT_RECIPIENT verwenden.
-    const recipient = "shoan_david.scharrer@lidl.de";
-    GmailApp.sendEmail(recipient, subject, body, options);
+    GmailApp.sendEmail(MANUAL_EXPORT_RECIPIENT, subject, body, options);
     closeProgressBar();
-    ss.toast("E-Mail für " + provider.sheetName + " zur Prüfung an " + recipient + " gesendet.");
+    ss.toast("E-Mail für " + provider.sheetName + " zur Prüfung an " + MANUAL_EXPORT_RECIPIENT + " gesendet.");
   } catch (e) {
     updateProgress("FEHLER: " + e.message, 100);
     ss.toast(e.message, "Abbruch");
